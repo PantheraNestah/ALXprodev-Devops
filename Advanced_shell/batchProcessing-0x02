@@ -1,7 +1,8 @@
 #!/bin/bash
 
-# Array of Pokémon names
+# Array of Pokémon names (using the capitalized version from your script)
 POKEMON_LIST=("Bulbasaur" "Ivysaur" "Venusaur" "Charmander" "Charmeleon")
+#POKEMON_LIST=["bulbasaur", "ivysaur", "venusaur", "charmander", "charmeleon"]
 
 # Directory to save the data
 OUTPUT_DIR="pokemon_data"
@@ -14,23 +15,46 @@ for pokemon_name in "${POKEMON_LIST[@]}"; do
   # Convert the name to lowercase for the API URL and filename
   lower_pokemon_name=$(echo "$pokemon_name" | tr '[:upper:]' '[:lower:]')
   
-  echo "Fetching data for ${lower_pokemon_name}..."
-
-  # Define the output file path
   output_file="${OUTPUT_DIR}/${lower_pokemon_name}.json"
+  
+  # --- Retry Logic Added Here ---
+  max_retries=3
+  attempt=1
+  success=false
 
-  # Make the API request and save the response
-  if curl -s "https://pokeapi.co/api/v2/pokemon/${lower_pokemon_name}" -o "${output_file}"; then
-    # Check if the downloaded file is not empty and is valid JSON
-    if [ -s "${output_file}" ] && jq -e . >/dev/null 2>&1 < "${output_file}"; then
-      echo "Saved data to ${output_file} ✅"
+  while [ $attempt -le $max_retries ]; do
+    echo "Fetching data for ${lower_pokemon_name}... (Attempt ${attempt}/${max_retries})"
+
+    # Make the API request
+    if curl -s -f "https://pokeapi.co/api/v2/pokemon/${lower_pokemon_name}" -o "${output_file}"; then
+      # If curl is successful, check if the file is valid JSON
+      if [ -s "${output_file}" ] && jq -e . >/dev/null 2>&1 < "${output_file}"; then
+        echo "Saved data to ${output_file} ✅"
+        success=true
+        break # Exit the retry loop
+      else
+        echo "Attempt ${attempt} failed: Invalid data received."
+      fi
     else
-      echo "Failed to retrieve valid data for ${lower_pokemon_name}. The API might not have found the Pokémon." >&2
-      rm -f "${output_file}" # Clean up empty/invalid file
+      echo "Attempt ${attempt} failed: Could not connect to API."
     fi
-  else
-    echo "Error fetching data for ${lower_pokemon_name}. Check your connection." >&2
-  fi
 
+    # If not successful and not the last attempt, wait before retrying
+    if [ "$success" = false ] && [ $attempt -lt $max_retries ]; then
+      sleep 2
+    fi
+    
+    # Increment attempt counter
+    attempt=$((attempt + 1))
+  done
+  # --- End of Retry Logic ---
+
+  if [ "$success" = false ]; then
+    echo "Error: Failed to fetch data for ${lower_pokemon_name} after ${max_retries} attempts. Skipping." >&2
+    rm -f "${output_file}" # Clean up any failed download file
+  fi
+  
+  # A small delay before fetching the next Pokémon to be respectful to the API
   sleep 1
+
 done
