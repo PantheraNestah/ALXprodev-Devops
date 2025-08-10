@@ -39,13 +39,15 @@ echo ""
 cat "${REPORT_FILE}"
 echo ""
 
-# Use awk to calculate and print the average height and weight from the CSV
-awk '
+# --- MODIFICATION IS HERE ---
+# Use 'sed' to remove the header line ('1d' deletes line 1).
+# Pipe the result to 'awk' to calculate the averages.
+sed '1d' "${REPORT_FILE}" | awk '
 BEGIN {
     FS="," # Set the field separator to a comma
 }
-# Skip the header row (NR is the record/line number)
-NR > 1 {
+# No need for "NR > 1" because sed has already removed the header.
+{
     total_height += $2 # Sum the second column (Height)
     total_weight += $3 # Sum the third column (Weight)
     count++            # Increment the counter
@@ -56,4 +58,4 @@ END {
         printf "Average Height: %.2f m\n", total_height / count
         printf "Average Weight: %.2f kg\n", total_weight / count
     }
-}' "${REPORT_FILE}"
+}'
