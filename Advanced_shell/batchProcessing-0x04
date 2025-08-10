@@ -9,27 +9,50 @@ OUTPUT_DIR="pokemon_data_parallel"
 # Create the output directory if it doesn't exist
 mkdir -p "${OUTPUT_DIR}"
 
+# --- Process Management Added Here ---
+# Array to store the Process IDs (PIDs) of background jobs
+pids=()
+
+# Define a cleanup function that will be called on script exit
+# This function will kill all background jobs started by this script.
+cleanup() {
+    echo ""
+    echo "Interrupt received, cleaning up..."
+    # Loop through the PIDs and kill each process
+    for pid in "${pids[@]}"; do
+        # The 'kill' command sends a termination signal to the process
+        kill "$pid" 2>/dev/null
+    done
+    exit 1
+}
+
+# The 'trap' command sets up a hook.
+# It will run the 'cleanup' function if the script receives an INT (Ctrl+C) or TERM signal.
+trap cleanup INT TERM
+# --- End of Process Management Setup ---
+
+
 echo "Starting parallel fetch for all Pokémon..."
 
 # Loop through the list of Pokémon and start a background process for each
 for pokemon_name in "${POKEMON_LIST[@]}"; do
-  # Convert the name to lowercase for the API URL and filename
   lower_pokemon_name=$(echo "$pokemon_name" | tr '[:upper:]' '[:lower:]')
-  
   output_file="${OUTPUT_DIR}/${lower_pokemon_name}.json"
-
-  # The main command to fetch data. 
-  # The '&' at the end runs this command in the background.
+  
   (
     echo "Fetching data for ${lower_pokemon_name}..."
-    curl -s "https://pokeapi.co/api/v2/pokemon/${lower_pokemon_name}" -o "${output_file}"
+    curl -s -f "https://pokeapi.co/api/v2/pokemon/${lower_pokemon_name}" -o "${output_file}"
   ) &
 
+  # Capture the PID of the last background process and add it to our array
+  pids+=($!)
 done
 
 # The 'wait' command pauses the script until all background jobs have finished.
-# This is crucial for ensuring the script doesn't exit before downloads are complete.
 wait
+
+# Once all jobs are complete (successful exit), disable the trap.
+trap - INT TERM
 
 echo "--------------------------------------------------"
 echo "All parallel downloads complete. Verifying files..."
@@ -40,7 +63,7 @@ for pokemon_name in "${POKEMON_LIST[@]}"; do
   lower_pokemon_name=$(echo "$pokemon_name" | tr '[:upper:]' '[:lower:]')
   output_file="${OUTPUT_DIR}/${lower_pokemon_name}.json"
 
-  if [ -s "${output_file}" ]; then
+  if [ -s "${output_file}" ] && jq -e . >/dev/null 2>&1 < "${output_file}"; then
     echo "✅ Data saved for ${lower_pokemon_name} in ${output_file}"
   else
     echo "❌ Failed to save data for ${lower_pokemon_name}."
