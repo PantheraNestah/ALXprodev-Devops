@@ -1,21 +1,30 @@
 #!/bin/bash
 
-# Use jq to extract name, type, weight, and height from data.json
-# Then pipe the results to awk to format the output string
-jq -r '.name, .types[0].type.name, .weight, .height' data.json | awk '
-{
-    # awk reads the lines from jq in order
-    # NR is the record number (line number)
-    if (NR==1) name=$0;
-    if (NR==2) type=$0;
-    if (NR==3) weight=$0/10; # Convert hectograms to kilograms
-    if (NR==4) height=$0/10; # Convert decimetres to meters
-}
-END {
-    # Capitalize the first letter of the name and type
-    sub(/./, toupper(substr(name,1,1)), name)
-    sub(/./, toupper(substr(type,1,1)), type)
+# Check if data.json exists and is not empty
+if [ ! -s "data.json" ]; then
+    echo "Error: data.json is missing or empty. Please run the first script to generate it." >&2
+    exit 1
+fi
 
-    # Print the final formatted string
-    printf "%s is of type %s, weighs %skg, and is %sm tall.\n", name, type, weight, height
-}'
+# Use jq to extract the raw data, with each value on a new line
+# Then, pipe this data through the rest of the script
+jq -r '.name, .types[0].type.name, .weight, .height' data.json | {
+    # Read the first four lines of input into variables
+    read name
+    read type
+    read weight
+    read height
+
+    # Use sed to capitalize the first letter of the name and the type
+    # 's/./\u&/' replaces the first character with its uppercase version
+    name=$(echo "$name" | sed 's/./\u&/')
+    type=$(echo "$type" | sed 's/./\u&/')
+
+    # Use awk to perform the unit conversions
+    # We pass the shell variable to awk and tell it to print the result of the division
+    formatted_weight=$(echo "$weight" | awk '{print $1 / 10}')
+    formatted_height=$(echo "$height" | awk '{print $1 / 10}')
+
+    # Print the final output in the exact format required by the check
+    echo "$name is of type $type, weighs ${formatted_weight}kg, and is ${formatted_height}m tall."
+}
