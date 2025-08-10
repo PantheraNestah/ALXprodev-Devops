@@ -1,0 +1,21 @@
+#!/bin/bash
+
+# Use jq to extract name, type, weight, and height from data.json
+# Then pipe the results to awk to format the output string
+jq -r '.name, .types[0].type.name, .weight, .height' data.json | awk '
+{
+    # awk reads the lines from jq in order
+    # NR is the record number (line number)
+    if (NR==1) name=$0;
+    if (NR==2) type=$0;
+    if (NR==3) weight=$0/10; # Convert hectograms to kilograms
+    if (NR==4) height=$0/10; # Convert decimetres to meters
+}
+END {
+    # Capitalize the first letter of the name and type
+    sub(/./, toupper(substr(name,1,1)), name)
+    sub(/./, toupper(substr(type,1,1)), type)
+
+    # Print the final formatted string
+    printf "%s is of type %s, weighs %skg, and is %sm tall.\n", name, type, weight, height
+}'
