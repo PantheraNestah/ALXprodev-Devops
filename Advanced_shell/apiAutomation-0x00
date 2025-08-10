@@ -1,0 +1,12 @@
+#!/bin/bash
+
+API_URL="https://pokeapi.co/api/v2/pokemon/pikachu"
+
+curl -s "${API_URL}" > data.json 2> errors.txt
+
+# Check if the data.json file was created and is not empty
+if [ -s data.json ]; then
+  echo "Successfully retrieved Pokémon data and saved to data.json"
+else
+  echo "Failed to retrieve Pokémon data. Check errors.txt for details."
+fi
