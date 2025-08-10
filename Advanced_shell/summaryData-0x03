@@ -1,0 +1,59 @@
+#!/bin/bash
+
+JSON_DIR="pokemon_data"
+REPORT_FILE="pokemon_report.csv"
+
+# Check if the data directory exists
+if [ ! -d "$JSON_DIR" ]; then
+    echo "Error: Directory ${JSON_DIR} not found." >&2
+    echo "Please run the 'fetch_multiple_pokemon' script first." >&2
+    exit 1
+fi
+
+# Create the CSV file and write the header
+echo "Name,Height (m),Weight (kg)" > "${REPORT_FILE}"
+
+# Loop through each JSON file in the directory
+for file in "${JSON_DIR}"/*.json; do
+  # Use jq to extract name, height, and weight
+  # Pipe to awk to format the data into a CSV row
+  jq -r '.name, .height, .weight' "${file}" | awk '
+  {
+      # Read the lines from jq in order
+      if (NR==1) name=$0;
+      if (NR==2) height=$0/10; # Convert decimetres to meters
+      if (NR==3) weight=$0/10; # Convert hectograms to kilograms
+  }
+  END {
+      # Capitalize the first letter of the name
+      sub(/./, toupper(substr(name,1,1)), name)
+      
+      # Print the formatted CSV row
+      printf "%s,%.1f,%.1f\n", name, height, weight
+  }' >> "${REPORT_FILE}"
+done
+
+# Announce the report generation and display its contents
+echo "CSV Report generated at: ${REPORT_FILE}"
+echo ""
+cat "${REPORT_FILE}"
+echo ""
+
+# Use awk to calculate and print the average height and weight from the CSV
+awk '
+BEGIN {
+    FS="," # Set the field separator to a comma
+}
+# Skip the header row (NR is the record/line number)
+NR > 1 {
+    total_height += $2 # Sum the second column (Height)
+    total_weight += $3 # Sum the third column (Weight)
+    count++            # Increment the counter
+}
+END {
+    # After processing all lines, calculate and print the averages
+    if (count > 0) {
+        printf "Average Height: %.2f m\n", total_height / count
+        printf "Average Weight: %.2f kg\n", total_weight / count
+    }
+}' "${REPORT_FILE}"
