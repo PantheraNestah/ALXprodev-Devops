@@ -1,0 +1,36 @@
+#!/bin/bash
+
+# Array of Pokémon names
+POKEMON_LIST=("Bulbasaur" "Ivysaur" "Venusaur" "Charmander" "Charmeleon")
+
+# Directory to save the data
+OUTPUT_DIR="pokemon_data"
+
+# Create the output directory if it doesn't exist
+mkdir -p "${OUTPUT_DIR}"
+
+# Loop through the list of Pokémon
+for pokemon_name in "${POKEMON_LIST[@]}"; do
+  # Convert the name to lowercase for the API URL and filename
+  lower_pokemon_name=$(echo "$pokemon_name" | tr '[:upper:]' '[:lower:]')
+  
+  echo "Fetching data for ${lower_pokemon_name}..."
+
+  # Define the output file path
+  output_file="${OUTPUT_DIR}/${lower_pokemon_name}.json"
+
+  # Make the API request and save the response
+  if curl -s "https://pokeapi.co/api/v2/pokemon/${lower_pokemon_name}" -o "${output_file}"; then
+    # Check if the downloaded file is not empty and is valid JSON
+    if [ -s "${output_file}" ] && jq -e . >/dev/null 2>&1 < "${output_file}"; then
+      echo "Saved data to ${output_file} ✅"
+    else
+      echo "Failed to retrieve valid data for ${lower_pokemon_name}. The API might not have found the Pokémon." >&2
+      rm -f "${output_file}" # Clean up empty/invalid file
+    fi
+  else
+    echo "Error fetching data for ${lower_pokemon_name}. Check your connection." >&2
+  fi
+
+  sleep 1
+done
